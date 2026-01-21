@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <title>SMART App - Multiple Resources</title>
+        <script src="https://cdn.jsdelivr.net/npm/fhirclient/build/fhir-client.js"></script>
+        <style>
+            /* 新增 obs 樣式 */
+            #patient, #meds, #obs {
+                font-family: Monaco, monospace;
+                white-space: pre;
+                font-size: 12px;
+                height: 25vh;
+                overflow: scroll;
+                border: 1px solid #CCC;
+                margin-bottom: 10px;
+                background: #f9f9f9;
+            }
+        </style>
+    </head>
+    <body>
+        <h4>1. Current Patient</h4>
+        <div id="patient">Loading...</div>
+
+        <h4>2. Medications (MedicationRequest)</h4>
+        <div id="meds">Loading...</div>
+
+        <h4>3. Observations (Labs/Vitals)</h4>
+        <div id="obs">Loading...</div>
+
+        <script type="text/javascript">
+            FHIR.oauth2.ready().then(function(client) {
+                
+                // 定義三個同時執行的任務
+                const patientTask = client.patient.read();
+                
+                const medicationTask = client.request("/MedicationRequest?patient=" + client.patient.id, {
+                    resolveReferences: [ "medicationReference" ],
+                    graph: true
+                });
+
+                const observationTask = client.request("/Observation?patient=" + client.patient.id);
+
+                // 使用 Promise.all 同時發送請求
+                Promise.all([patientTask, medicationTask, observationTask])
+                    .then(function(results) {
+                        // results 是一個陣列，順序與上面定義的一致
+                        const [pt, meds, obs] = results;
+
+                        // 1. 渲染病患資料
+                        document.getElementById("patient").innerText = JSON.stringify(pt, null, 4);
+
+                        // 2. 處理並渲染藥物資料
+                        if (meds.entry) {
+                            document.getElementById("meds").innerText = JSON.stringify(meds.entry, null, 4);
+                        } else {
+                            document.getElementById("meds").innerText = "No medications found.";
+                        }
+
+                        // 3. 處理並渲染觀測資料 (Observation)
+                        if (obs.entry) {
+                            document.getElementById("obs").innerText = JSON.stringify(obs.entry, null, 4);
+                        } else {
+                            document.getElementById("obs").innerText = "No observations found.";
+                        }
+                    })
+                    .catch(function(error) {
+                        console.error("Error fetching data:", error);
+                        document.body.innerText = "Error: " + error.message;
+                    });
+
+            }).catch(console.error);
+        </script>
+    </body>
+</html>
